@@ -2,7 +2,6 @@ import json
 import os
 import random
 import requests
-import traceback
 from PIL import Image, ImageDraw, ImageFont
 from io import BytesIO
 
@@ -16,18 +15,16 @@ DEFAULT_QUOTES = [
 ]
 
 def fetch_unique_pexels_image(used_photo_ids):
-    print("[DEBUG] Pexels 4K dikey duvar kağıtları aranıyor...")
+    print("[DEBUG] Pexels karanlık ve estetik dikey duvar kağıtları aranıyor...")
     api_key = os.environ.get("PEXELS_API_KEY")
     
     if not api_key:
         print("[DEBUG UYARI] PEXELS_API_KEY bulunamadı!")
         return None, None
 
-    # İstediğiniz 4K dikey wallpaper konseptine uygun arama kelimeleri
-    queries = ["4k wallpaper vertical", "dark 4k wallpaper", "moody dark aesthetic", "dark mobile wallpaper"]
+    queries = ["dark aesthetic wallpaper vertical", "moody dark wallpaper 4k", "dark minimalist portrait", "dark shadows wallpaper"]
     selected_query = random.choice(queries)
     
-    # Sayfayı aşağı kaydırıyormuş gibi daha geniş bir havuz için per_page değerini yüksek tutuyoruz (örn: 40)
     url = f"https://api.pexels.com/v1/search?query={selected_query}&orientation=portrait&per_page=40"
     headers = {"Authorization": api_key}
     
@@ -35,18 +32,14 @@ def fetch_unique_pexels_image(used_photo_ids):
         response = requests.get(url, headers=headers, timeout=10)
         if response.status_code == 200:
             photos = response.json().get("photos", [])
-            
-            # Daha önce KULLANILMAMIŞ fotoğrafları filtrele (Aynı resmi tekrar kullanmamak için)
             available_photos = [p for p in photos if p["id"] not in used_photo_ids]
             
             if not available_photos:
-                available_photos = photos # Liste biterse havuza tekrar izin ver
+                available_photos = photos
                 
             if available_photos:
                 photo = random.choice(available_photos)
                 photo_id = photo["id"]
-                
-                # En yüksek kalitedeki görsel kaynağını alıyoruz
                 img_url = photo["src"]["large2x"]
                 
                 img_response = requests.get(img_url, timeout=10)
@@ -78,18 +71,16 @@ def generate_posts():
     for i in range(3):
         print(f"\n--- Post {i + 1} Üretiliyor ---")
         
-        # Kesinlikle benzersiz görsel çek
         img, photo_id = fetch_unique_pexels_image(used_photo_ids)
         if photo_id:
-            used_photo_ids.add(photo_id) # ID'yi hafızaya at ki bir daha seçilmesin
+            used_photo_ids.add(photo_id)
             
         if img is None:
             img = Image.new("RGBA", (1080, 1920), (15, 15, 15, 255))
         
         width, height = img.size
-        draw = ImageDraw.Draw(img)
 
-        # İdeal Font Boyutu (60px - Üst ile orta arasında dengeli ve okunaklı)
+        # İdeal ve Dengeli Font Boyutu (48px - Ekranı kaplamaz)
         font = None
         font_paths = [
             "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
@@ -99,7 +90,7 @@ def generate_posts():
         
         for f_path in font_paths:
             try:
-                font = ImageFont.truetype(f_path, size=60)
+                font = ImageFont.truetype(f_path, size=48)
                 break
             except IOError:
                 continue
@@ -110,7 +101,7 @@ def generate_posts():
         text = selected_quotes[i % len(selected_quotes)]
         
         # Metni satırlara bölme
-        margin = 110
+        margin = 120
         max_width = width - (2 * margin)
         words = text.split()
         lines = []
@@ -127,20 +118,44 @@ def generate_posts():
         if current_line:
             lines.append(current_line)
 
-        # Satır aralığı ve dikey/yatay ortalama
-        line_height = font.getbbox("Ay")[3] - font.getbbox("Ay")[1] + 25
+        # Metin blok ölçüleri
+        line_height = font.getbbox("Ay")[3] - font.getbbox("Ay")[1] + 20
         total_text_height = len(lines) * line_height
-        y = (height - total_text_height) / 2
+        
+        start_y = (height - total_text_height) / 2
 
+        # Arka plana yarı saydam siyah kutu (Overlay) çizmek için geçici katman
+        txt_layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
+        draw_txt = ImageDraw.Draw(txt_layer)
+
+        # Yazının arkasına hafif karanlık, modern bir kutu ekleyelim ki beyaz arka planda bile net okunsun
+        box_padding = 40
+        max_line_width = max(font.getbbox(l)[2] - font.getbbox(l)[0] for l in lines)
+        box_x0 = (width - max_line_width) / 2 - box_padding
+        box_y0 = start_y - box_padding
+        box_x1 = (width + max_line_width) / 2 + box_padding
+        box_y1 = start_y + total_text_height + box_padding
+
+        # Yarı saydam siyah kutu (RGBA: 0,0,0, 160 -> %60 opaklık)
+        draw_txt.rounded_rectangle(
+            [box_x0, box_y0, box_x1, box_y1], 
+            radius=20, 
+            fill=(0, 0, 0, 160)
+        )
+
+        # Satırları kutunun üzerine yazdır
+        y = start_y
         for line in lines:
             bbox = font.getbbox(line)
             w = bbox[2] - bbox[0]
             x = (width - w) / 2
             
-            # Gölge ve ana yazı
-            draw.text((x + 4, y + 4), line, font=font, fill=(0, 0, 0, 230))
-            draw.text((x, y), line, font=font, fill=(255, 255, 255, 255))
+            # Yazı rengi saf beyaz
+            draw_txt.text((x, y), line, font=font, fill=(255, 255, 255, 255))
             y += line_height
+
+        # Katmanları birleştir
+        img = Image.alpha_composite(img, txt_layer)
 
         output_path = f"output/post_{i + 1}.jpg"
         img.convert("RGB").save(output_path, "JPEG", quality=95)
