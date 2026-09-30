@@ -6,14 +6,14 @@ import traceback
 from PIL import Image, ImageDraw, ImageFont
 from io import BytesIO
 
-# Varsayılan söz havuzu
+# @motivekaos tarzına özel analiz edilmiş varsayılan söz havuzu
 DEFAULT_QUOTES = [
-    "İnsan zihni, en kusursuz hapishanedir.",
-    "Herkesin bildiği doğrular, en büyük illüzyondur.",
-    "Yalnızlık, kalabalıkların yarattığı en sessiz çığlıktır.",
-    "Gözler, sadece beynin inanmak istediğini görür.",
-    "En tehlikeli düşman, kendi zihninde sessizce büyüttüğündür.",
-    "Sessizlik, söylenmemiş en ağır intikamdır."
+    "İnsan, kendi zihninde kurduğu hapishanenin hem mahkûmu hem de gardiyanıdır.",
+    "Herkesin bildiği doğrular, başkaları tarafından yazılmış en büyük senaryolardır.",
+    "Sessizlik, zayıflık değil; karşındakinin anlamayacağını bildiğin için verilen en ağır cezadır.",
+    "En tehlikeli manipülasyon, sana kendi fikrinmiş gibi hissettirilen yalanlardır.",
+    "Yalnızlaşmak bir tercih değil; insanları çözmenin getirdiği kaçınılmaz bir sondur.",
+    "Gözler, sadece beynin inanmaya programlandığı gerçeği görür."
 ]
 
 def fetch_random_pexels_image():
@@ -24,7 +24,8 @@ def fetch_random_pexels_image():
         print("[DEBUG UYARI] PEXELS_API_KEY ortam değişkeni bulunamadı!")
         return None
 
-    queries = ["dark aesthetic", "moody nature", "shadows", "mysterious portrait", "dark minimal"]
+    # @motivekaos tarzı karanlık, estetik ve gizemli arama etiketleri
+    queries = ["dark aesthetic", "moody shadows", "dark psychology", "mysterious portrait", "dark minimalist"]
     selected_query = random.choice(queries)
     print(f"[DEBUG] Seçilen Pexels arama terimi: {selected_query}")
     
@@ -81,20 +82,20 @@ def generate_posts():
     else:
         print("[DEBUG] 'input/metinler.json' bulunamadı, varsayılan söz havuzu kullanılacak.")
 
-    # Üretim döngüsü
+    # Üretim döngüsü (3 adet post üretir)
     for i in range(3):
         print(f"\n--- [DEBUG] Döngü Başlangıcı: Post {i + 1} ---")
         
         # A) Görsel alımı
         img = fetch_random_pexels_image()
         if img is None:
-            print("[DEBUG] Pexels görseli alınamadığı için yedek arka plan oluşturuluyor.")
-            img = Image.new("RGBA", (1080, 1920), (20, 20, 20, 255))
+            print("[DEBUG] Pexels görseli alınamadığı için yedek koyu arka plan oluşturuluyor.")
+            img = Image.new("RGBA", (1080, 1920), (15, 15, 15, 255))
         
         width, height = img.size
         draw = ImageDraw.Draw(img)
 
-        # B) Font ayarı
+        # B) Font ve Boyut Ayarı (Instagram dikey formatı için ideal boyut: 55)
         try:
             font = ImageFont.truetype("arial.ttf", size=55)
             print("[DEBUG] Özel font (arial.ttf) yüklendi.")
@@ -106,9 +107,9 @@ def generate_posts():
         text = random.choice(quotes)
         print(f"[DEBUG] Seçilen Söz: {text}")
         
-        # D) Metin işleme ve satırlara bölme
+        # D) Metin işleme, satırlara bölme ve ortalama
         try:
-            margin = 120
+            margin = 120  # Sağdan ve soldan bırakılacak boşluk payı
             max_width = width - (2 * margin)
             words = text.split()
             lines = []
@@ -125,20 +126,21 @@ def generate_posts():
             if current_line:
                 lines.append(current_line)
 
-            line_height = font.getbbox("Ay")[3] - font.getbbox("Ay")[1] + 20
+            line_height = font.getbbox("Ay")[3] - font.getbbox("Ay")[1] + 25
             total_text_height = len(lines) * line_height
-            y = (height - total_text_height) / 2
+            y = (height - total_text_height) / 2  # Dikey ortalama
 
             for line in lines:
                 bbox = font.getbbox(line)
                 w = bbox[2] - bbox[0]
-                x = (width - w) / 2
+                x = (width - w) / 2  # Yatay ortalama
                 
-                # Gölge ve ana metin çizimi
-                draw.text((x + 3, y + 3), line, font=font, fill=(0, 0, 0, 255))
-                draw.text((x, y), line, font=font, fill=(255, 255, 255, 255))
+                # Gölge Efekti (Arka planda okunabilirliği artırmak için siyah gölge + beyaz ana yazı)
+                draw.text((x + 4, y + 4), line, font=font, fill=(0, 0, 0, 220))  # Gölge
+                draw.text((x, y), line, font=font, fill=(255, 255, 255, 255))      # Ana Yazı
                 y += line_height
-            print("[DEBUG] Metin görsel üzerine başarıyla işlendi.")
+                
+            print("[DEBUG] Metin gölgelendirilerek görsel üzerine başarıyla işlendi.")
             
         except Exception as e:
             print(f"[DEBUG HATA] Metin işleme veya çizim sırasında hata oluştu: {e}")
