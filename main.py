@@ -15,14 +15,14 @@ DEFAULT_QUOTES = [
 ]
 
 def fetch_unique_pexels_image(used_photo_ids):
-    print("[DEBUG] Pexels karanlık ve estetik dikey duvar kağıtları aranıyor...")
+    print("[DEBUG] Pexels sinematik karanlık dikey görseller aranıyor...")
     api_key = os.environ.get("PEXELS_API_KEY")
     
     if not api_key:
         print("[DEBUG UYARI] PEXELS_API_KEY bulunamadı!")
         return None, None
 
-    queries = ["dark aesthetic wallpaper vertical", "moody dark wallpaper 4k", "dark minimalist portrait", "dark shadows wallpaper"]
+    queries = ["dark aesthetic wallpaper vertical", "moody dark atmosphere 4k", "dark minimalist cinematic", "dark mystery portrait"]
     selected_query = random.choice(queries)
     
     url = f"https://api.pexels.com/v1/search?query={selected_query}&orientation=portrait&per_page=40"
@@ -80,7 +80,14 @@ def generate_posts():
         
         width, height = img.size
 
-        # İdeal ve Dengeli Font Boyutu (48px - Ekranı kaplamaz)
+        # Görselin üzerine hafif bir genel karartma (Vignette / Sinematik Karartma) uygulayalım
+        # Bu sayede beyaz/parlak resimler otomatik olarak koyulaşır ve yazı her yerde patlar.
+        overlay = Image.new("RGBA", img.size, (0, 0, 0, 90)) # %35 siyah tül perde
+        img = Image.alpha_composite(img, overlay)
+
+        draw = ImageDraw.Draw(img)
+
+        # İdeal Font Boyutu (48px - Oldukça dengeli ve estetik)
         font = None
         font_paths = [
             "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
@@ -101,7 +108,7 @@ def generate_posts():
         text = selected_quotes[i % len(selected_quotes)]
         
         # Metni satırlara bölme
-        margin = 120
+        margin = 130
         max_width = width - (2 * margin)
         words = text.split()
         lines = []
@@ -118,44 +125,27 @@ def generate_posts():
         if current_line:
             lines.append(current_line)
 
-        # Metin blok ölçüleri
-        line_height = font.getbbox("Ay")[3] - font.getbbox("Ay")[1] + 20
+        # Metin blok ölçüleri ve ortalama
+        line_height = font.getbbox("Ay")[3] - font.getbbox("Ay")[1] + 22
         total_text_height = len(lines) * line_height
-        
-        start_y = (height - total_text_height) / 2
+        y = (height - total_text_height) / 2
 
-        # Arka plana yarı saydam siyah kutu (Overlay) çizmek için geçici katman
-        txt_layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
-        draw_txt = ImageDraw.Draw(txt_layer)
-
-        # Yazının arkasına hafif karanlık, modern bir kutu ekleyelim ki beyaz arka planda bile net okunsun
-        box_padding = 40
-        max_line_width = max(font.getbbox(l)[2] - font.getbbox(l)[0] for l in lines)
-        box_x0 = (width - max_line_width) / 2 - box_padding
-        box_y0 = start_y - box_padding
-        box_x1 = (width + max_line_width) / 2 + box_padding
-        box_y1 = start_y + total_text_height + box_padding
-
-        # Yarı saydam siyah kutu (RGBA: 0,0,0, 160 -> %60 opaklık)
-        draw_txt.rounded_rectangle(
-            [box_x0, box_y0, box_x1, box_y1], 
-            radius=20, 
-            fill=(0, 0, 0, 160)
-        )
-
-        # Satırları kutunun üzerine yazdır
-        y = start_y
         for line in lines:
             bbox = font.getbbox(line)
             w = bbox[2] - bbox[0]
             x = (width - w) / 2
             
-            # Yazı rengi saf beyaz
-            draw_txt.text((x, y), line, font=font, fill=(255, 255, 255, 255))
+            # Harf arkasına kalın gölge (Outline / Drop Shadow efekti)
+            # Keskin kutu yerine harflerin arkasındaki bu gölge, yazıyı her türlü arka planda okunur kılar.
+            shadow_offset = 3
+            for ox in range(-shadow_offset, shadow_offset + 1):
+                for oy in range(-shadow_offset, shadow_offset + 1):
+                    if ox != 0 or oy != 0:
+                        draw.text((x + ox, y + oy), line, font=font, fill=(0, 0, 0, 255))
+            
+            # Ana saf beyaz yazı
+            draw.text((x, y), line, font=font, fill=(255, 255, 255, 255))
             y += line_height
-
-        # Katmanları birleştir
-        img = Image.alpha_composite(img, txt_layer)
 
         output_path = f"output/post_{i + 1}.jpg"
         img.convert("RGB").save(output_path, "JPEG", quality=95)
