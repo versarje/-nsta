@@ -16,32 +16,37 @@ DEFAULT_QUOTES = [
 ]
 
 def fetch_unique_pexels_image(used_photo_ids):
-    print("[DEBUG] Pexels API'den benzersiz görsel aranıyor...")
+    print("[DEBUG] Pexels 4K dikey duvar kağıtları aranıyor...")
     api_key = os.environ.get("PEXELS_API_KEY")
     
     if not api_key:
         print("[DEBUG UYARI] PEXELS_API_KEY bulunamadı!")
         return None, None
 
-    queries = ["dark aesthetic", "moody shadows", "dark psychology", "mysterious portrait", "dark minimalist"]
+    # İstediğiniz 4K dikey wallpaper konseptine uygun arama kelimeleri
+    queries = ["4k wallpaper vertical", "dark 4k wallpaper", "moody dark aesthetic", "dark mobile wallpaper"]
     selected_query = random.choice(queries)
     
-    url = f"https://api.pexels.com/v1/search?query={selected_query}&orientation=portrait&per_page=30"
+    # Sayfayı aşağı kaydırıyormuş gibi daha geniş bir havuz için per_page değerini yüksek tutuyoruz (örn: 40)
+    url = f"https://api.pexels.com/v1/search?query={selected_query}&orientation=portrait&per_page=40"
     headers = {"Authorization": api_key}
     
     try:
         response = requests.get(url, headers=headers, timeout=10)
         if response.status_code == 200:
             photos = response.json().get("photos", [])
-            # Daha önce kullanılmamış fotoğrafları filtrele
+            
+            # Daha önce KULLANILMAMIŞ fotoğrafları filtrele (Aynı resmi tekrar kullanmamak için)
             available_photos = [p for p in photos if p["id"] not in used_photo_ids]
             
             if not available_photos:
-                available_photos = photos # Eğer hepsi kullanıldıysa havuza dön
+                available_photos = photos # Liste biterse havuza tekrar izin ver
                 
             if available_photos:
                 photo = random.choice(available_photos)
                 photo_id = photo["id"]
+                
+                # En yüksek kalitedeki görsel kaynağını alıyoruz
                 img_url = photo["src"]["large2x"]
                 
                 img_response = requests.get(img_url, timeout=10)
@@ -68,16 +73,15 @@ def generate_posts():
             print(f"[DEBUG HATA] JSON okunamadı: {e}")
 
     used_photo_ids = set()
-    # Sözlerin de her postta farklı seçilmesi için karıştırıyoruz
     selected_quotes = random.sample(quotes, min(3, len(quotes)))
 
     for i in range(3):
         print(f"\n--- Post {i + 1} Üretiliyor ---")
         
-        # Benzersiz görsel çek
+        # Kesinlikle benzersiz görsel çek
         img, photo_id = fetch_unique_pexels_image(used_photo_ids)
         if photo_id:
-            used_photo_ids.add(photo_id)
+            used_photo_ids.add(photo_id) # ID'yi hafızaya at ki bir daha seçilmesin
             
         if img is None:
             img = Image.new("RGBA", (1080, 1920), (15, 15, 15, 255))
@@ -85,7 +89,7 @@ def generate_posts():
         width, height = img.size
         draw = ImageDraw.Draw(img)
 
-        # İdeal Font Boyutu (60px - Üst ile orta arasında dengeli)
+        # İdeal Font Boyutu (60px - Üst ile orta arasında dengeli ve okunaklı)
         font = None
         font_paths = [
             "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
@@ -103,7 +107,6 @@ def generate_posts():
         if font is None:
             font = ImageFont.load_default()
 
-        # Sırayla farklı bir söz seç
         text = selected_quotes[i % len(selected_quotes)]
         
         # Metni satırlara bölme
