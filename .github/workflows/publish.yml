@@ -1,0 +1,36 @@
+name: Otomatik Pexels & Söz Botu
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 9 * * *' # Her gün sabah 09:00'da çalışır
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Repo'yu Kopyala
+      uses: actions/checkout@v4
+
+    - name: Python Kurulumu
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Kütüphaneleri Yükle
+      run: |
+        pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Botu Çalıştır
+      env:
+        PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+      run: |
+        python main.py
+
+    - name: Üretilen Resimleri Kaydet
+      uses: actions/upload-artifact@v4
+      with:
+        name: motive-postlar
+        path: output/
