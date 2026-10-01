@@ -6,12 +6,8 @@ from PIL import Image, ImageDraw, ImageFont
 from io import BytesIO
 
 DEFAULT_QUOTES = [
-    "İnsan, kendi zihninde kurduğu hapishanenin hem mahkûmu hem de gardiyanıdır.",
-    "Herkesin bildiği doğrular, başkaları tarafından yazılmış en büyük senaryolardır.",
-    "Sessizlik, zayıflık değil; karşındakinin anlamayacağını bildiğin için verilen en ağır cezadır.",
-    "En tehlikeli manipülasyon, sana kendi fikrinmiş gibi hissettirilen yalanlardır.",
-    "Yalnızlaşmak bir tercih değil; insanları çözmenin getirdiği kaçınılmaz bir sondur.",
-    "Gözler, sadece beynin inanmaya programlandığı gerçeği görür."
+    {"id": 1, "text": "İnsan, kendi zihninde kurduğu hapishanenin hem mahkûmu hem de gardiyanıdır."},
+    {"id": 2, "text": "Herkesin bildiği doğrular, başkaları tarafından yazılmış en büyük senaryolardır."}
 ]
 
 def fetch_unique_pexels_image(used_photo_ids):
@@ -55,21 +51,28 @@ def generate_posts():
     if not os.path.exists('output'):
         os.makedirs('output')
 
-    quotes = DEFAULT_QUOTES
+    # JSON dosyasını oku
+    quotes_data = DEFAULT_QUOTES
     if os.path.exists('input/metinler.json'):
         try:
             with open('input/metinler.json', 'r', encoding='utf-8') as f:
                 data = json.load(f)
                 if data:
-                    quotes = [item["text"] for item in data]
+                    quotes_data = data
         except Exception as e:
             print(f"[DEBUG HATA] JSON okunamadı: {e}")
 
-    used_photo_ids = set()
-    selected_quotes = random.sample(quotes, min(3, len(quotes)))
+    # Sözleri ID sırasına göre sırala (1, 2, 3...)
+    quotes_data = sorted(quotes_data, key=lambda x: x.get("id", 0))
 
-    for i in range(3):
-        print(f"\n--- Post {i + 1} Üretiliyor ---")
+    used_photo_ids = set()
+
+    # Listede kaç adet metin varsa o kadar döner
+    for item in quotes_data:
+        item_id = item.get("id", 1)
+        text = item.get("text", "")
+        
+        print(f"\n--- Post {item_id} Üretiliyor ---")
         
         img, photo_id = fetch_unique_pexels_image(used_photo_ids)
         if photo_id:
@@ -80,14 +83,13 @@ def generate_posts():
         
         width, height = img.size
 
-        # Görselin üzerine hafif bir genel karartma (Vignette / Sinematik Karartma) uygulayalım
-        # Bu sayede beyaz/parlak resimler otomatik olarak koyulaşır ve yazı her yerde patlar.
-        overlay = Image.new("RGBA", img.size, (0, 0, 0, 90)) # %35 siyah tül perde
+        # Sinematik genel karartma (Overlay)
+        overlay = Image.new("RGBA", img.size, (0, 0, 0, 90))
         img = Image.alpha_composite(img, overlay)
 
         draw = ImageDraw.Draw(img)
 
-        # İdeal Font Boyutu (48px - Oldukça dengeli ve estetik)
+        # İdeal Font Boyutu
         font = None
         font_paths = [
             "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
@@ -105,8 +107,6 @@ def generate_posts():
         if font is None:
             font = ImageFont.load_default()
 
-        text = selected_quotes[i % len(selected_quotes)]
-        
         # Metni satırlara bölme
         margin = 130
         max_width = width - (2 * margin)
@@ -125,7 +125,7 @@ def generate_posts():
         if current_line:
             lines.append(current_line)
 
-        # Metin blok ölçüleri ve ortalama
+        # Metin blok ölçüleri
         line_height = font.getbbox("Ay")[3] - font.getbbox("Ay")[1] + 22
         total_text_height = len(lines) * line_height
         y = (height - total_text_height) / 2
@@ -135,8 +135,7 @@ def generate_posts():
             w = bbox[2] - bbox[0]
             x = (width - w) / 2
             
-            # Harf arkasına kalın gölge (Outline / Drop Shadow efekti)
-            # Keskin kutu yerine harflerin arkasındaki bu gölge, yazıyı her türlü arka planda okunur kılar.
+            # Kalın gölge efekti
             shadow_offset = 3
             for ox in range(-shadow_offset, shadow_offset + 1):
                 for oy in range(-shadow_offset, shadow_offset + 1):
@@ -147,7 +146,7 @@ def generate_posts():
             draw.text((x, y), line, font=font, fill=(255, 255, 255, 255))
             y += line_height
 
-        output_path = f"output/post_{i + 1}.jpg"
+        output_path = f"output/post_{item_id}.jpg"
         img.convert("RGB").save(output_path, "JPEG", quality=95)
         print(f"Post kaydedildi: {output_path}")
 
